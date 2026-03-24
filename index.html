@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HorrorQuest | Страшные квесты</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.5;
+            padding: 20px;
+        }
+        .container { max-width: 1300px; margin: 0 auto; }
+        h1 { font-size: 42px; margin-bottom: 20px; }
+        h1 span { color: #b30000; }
+        .quests-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 24px;
+            margin: 40px 0;
+        }
+        .quest-card {
+            background: #111;
+            border-radius: 20px;
+            padding: 20px;
+            cursor: pointer;
+            border: 1px solid #222;
+            transition: 0.2s;
+        }
+        .quest-card:hover { border-color: #b30000; transform: translateY(-4px); }
+        .quest-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+        .quest-price { font-size: 20px; color: #b30000; font-weight: bold; margin-top: 12px; }
+        .back-link {
+            display: inline-block;
+            margin: 20px 0;
+            color: #b30000;
+            cursor: pointer;
+        }
+        .date-picker { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+        .date-btn {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            padding: 8px 18px;
+            border-radius: 40px;
+            cursor: pointer;
+        }
+        .date-btn.active { background: #b30000; border-color: #b30000; }
+        .slots-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 20px 0;
+        }
+        .slot {
+            background: #1e3a2a;
+            padding: 10px 18px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .slot.booked {
+            background: #3a3a3a;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #121212;
+            max-width: 450px;
+            width: 90%;
+            border-radius: 24px;
+            padding: 28px;
+            border: 1px solid #2c2c2c;
+        }
+        .modal-content input, .modal-content select {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background: #1e1e1e;
+            border: 1px solid #2e2e2e;
+            border-radius: 12px;
+            color: white;
+        }
+        .submit-btn {
+            background: #b30000;
+            width: 100%;
+            padding: 14px;
+            border-radius: 40px;
+            font-weight: bold;
+            border: none;
+            color: white;
+            cursor: pointer;
+            margin-top: 16px;
+        }
+        .close-modal {
+            float: right;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        footer {
+            margin-top: 60px;
+            padding: 30px 0;
+            text-align: center;
+            border-top: 1px solid #222;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>HORROR<span>QUEST</span></h1>
+    <p>испытай настоящий страх</p>
+
+    <div id="mainPage">
+        <div class="quests-grid" id="questsGrid"></div>
+    </div>
+
+    <div id="questPage" style="display:none;">
+        <div class="back-link" id="backToMain">← Ко всем квестам</div>
+        <h2 id="questTitle"></h2>
+        <div id="questDesc"></div>
+        <div class="date-picker" id="dateButtons"></div>
+        <div class="slots-grid" id="slotsContainer"></div>
+        <div id="slotsLoading">Загрузка...</div>
+    </div>
+
+    <footer>
+        <p>📞 Коммунистическая ул., 57, Кемерово | Telegram: @horrorquest_bot</p>
+        <p>© HORROR QUEST — страшные квесты</p>
+    </footer>
+</div>
+
+<div id="bookingModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h3>Бронирование</h3>
+        <p id="modalSlotInfo"></p>
+        <form id="bookingForm">
+            <input type="hidden" id="bookingQuestApiId">
+            <input type="hidden" id="bookingDate">
+            <input type="hidden" id="bookingTime">
+            <input type="text" id="clientName" placeholder="Имя" required>
+            <input type="tel" id="clientPhone" placeholder="Телефон" required>
+            <input type="email" id="clientEmail" placeholder="Email" required>
+            <select id="playersCount">
+                <option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option>
+            </select>
+            <button type="submit" class="submit-btn">ЗАБРОНИРОВАТЬ</button>
+        </form>
+        <div id="bookingMessage" style="margin-top: 12px;"></div>
+    </div>
+</div>
+
+<script>
+    // КВЕСТЫ
+    const quests = [
+        { id: "q1", title: "Психбольница 2.0. Ужасы Вольтерры", players: "2–7", time: "60 мин", priceFrom: 4000, desc: "Психиатрическая больница Вольтерра. Ее называют местом, откуда не возвращаются.", ageText: "18+", apiId: "60bf9e6aa70341229aac724b" },
+        { id: "q2", title: "Сущность", players: "2–7", time: "60 мин", priceFrom: 4000, desc: "Сеанс к медиуму обернулся кошмаром.", ageText: "18+", apiId: "612371c2c48e46702e1efbea" },
+        { id: "q3", title: "Месть хирурга", players: "2–6", time: "60 мин", priceFrom: 4000, desc: "О заброшенной городской больнице ходят легенды.", ageText: "18+", apiId: "57b7d426f0904d5430951d0c" }
+    ];
+
+    // API (ПРЯМЫЕ ССЫЛКИ, БЕЗ ПРОКСИ)
+    const API_BASE = "https://xn--b1acdcqi5ci.xn--p1ai/api/booking/quest/";
+    const API_BOOKING = "https://xn--b1acdcqi5ci.xn--p1ai/api/booking_reserveds/quest";
+
+    let currentQuest = null;
+    let currentSlots = [];
+
+    async function fetchSlots(apiId) {
+        const res = await fetch(API_BASE + apiId);
+        return await res.json();
+    }
+
+    async function sendBooking(data) {
+        const res = await fetch(API_BOOKING, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    }
+
+    function renderSlots(selectedDate) {
+        const container = document.getElementById("slotsContainer");
+        const filtered = currentSlots.filter(s => s.date === selectedDate);
+        if (!filtered.length) {
+            container.innerHTML = "<div class='info-text'>Нет слотов на эту дату</div>";
+            return;
+        }
+        container.innerHTML = filtered.map(slot => `
+            <div class="slot ${!slot.is_free ? 'booked' : ''}" data-time="${slot.time}" data-date="${slot.date}">
+                ${slot.time} ${slot.price || 4000}₽
+            </div>
+        `).join("");
+
+        document.querySelectorAll('.slot:not(.booked)').forEach(el => {
+            el.onclick = () => {
+                document.getElementById("bookingQuestApiId").value = currentQuest.apiId;
+                document.getElementById("bookingDate").value = el.dataset.date;
+                document.getElementById("bookingTime").value = el.dataset.time;
+                document.getElementById("modalSlotInfo").innerHTML = `<strong>${currentQuest.title}</strong><br>${el.dataset.date} ${el.dataset.time}`;
+                document.getElementById("bookingModal").style.display = "flex";
+            };
+        });
+    }
+
+    async function showQuest(quest) {
+        currentQuest = quest;
+        document.getElementById("mainPage").style.display = "none";
+        document.getElementById("questPage").style.display = "block";
+        document.getElementById("questTitle").innerText = quest.title;
+        document.getElementById("questDesc").innerHTML = `<p>${quest.desc}</p><p>💰 от ${quest.priceFrom}₽ | 👥 ${quest.players} | ⏱️ ${quest.time} | 🔞 ${quest.ageText}</p>`;
+
+        // даты на 14 дней
+        const dates = [];
+        for (let i = 0; i < 14; i++) {
+            let d = new Date();
+            d.setDate(d.getDate() + i);
+            dates.push(d.toISOString().slice(0,10));
+        }
+        let selectedDate = dates[0];
+
+        const loading = document.getElementById("slotsLoading");
+        const slotsContainer = document.getElementById("slotsContainer");
+        loading.style.display = "block";
+        slotsContainer.style.display = "none";
+
+        try {
+            currentSlots = await fetchSlots(quest.apiId);
+            loading.style.display = "none";
+            slotsContainer.style.display = "flex";
+
+            function renderDates() {
+                document.getElementById("dateButtons").innerHTML = dates.map(d => `
+                    <div class="date-btn ${d === selectedDate ? 'active' : ''}" data-date="${d}">${d}</div>
+                `).join("");
+                document.querySelectorAll('.date-btn').forEach(btn => {
+                    btn.onclick = () => {
+                        selectedDate = btn.dataset.date;
+                        renderDates();
+                        renderSlots(selectedDate);
+                    };
+                });
+            }
+
+            renderDates();
+            renderSlots(selectedDate);
+        } catch (err) {
+            loading.innerHTML = "<div style='color:#ff5555;'>Ошибка загрузки слотов. Попробуйте позже.</div>";
+        }
+    }
+
+    function showMain() {
+        document.getElementById("mainPage").style.display = "block";
+        document.getElementById("questPage").style.display = "none";
+        const grid = document.getElementById("questsGrid");
+        grid.innerHTML = quests.map(q => `
+            <div class="quest-card" data-id="${q.id}">
+                <div class="quest-title">${q.title}</div>
+                <div class="quest-price">от ${q.priceFrom} ₽</div>
+            </div>
+        `).join("");
+        document.querySelectorAll('.quest-card').forEach(card => {
+            card.onclick = () => showQuest(quests.find(q => q.id === card.dataset.id));
+        });
+    }
+
+    document.getElementById("bookingForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const data = {
+            quest_id: document.getElementById("bookingQuestApiId").value,
+            date: document.getElementById("bookingDate").value,
+            time: document.getElementById("bookingTime").value,
+            name: document.getElementById("clientName").value,
+            phone: document.getElementById("clientPhone").value,
+            email: document.getElementById("clientEmail").value,
+            persons: parseInt(document.getElementById("playersCount").value)
+        };
+        const btn = e.target.querySelector(".submit-btn");
+        btn.disabled = true;
+        btn.innerText = "Отправка...";
+        try {
+            await sendBooking(data);
+            document.getElementById("bookingMessage").innerHTML = "<span style='color:#4caf50;'>✅ Бронь успешно создана!</span>";
+            setTimeout(() => {
+                document.getElementById("bookingModal").style.display = "none";
+                showMain();
+            }, 1500);
+        } catch (err) {
+            document.getElementById("bookingMessage").innerHTML = "<span style='color:#ff5555;'>❌ Ошибка бронирования</span>";
+            btn.disabled = false;
+            btn.innerText = "ЗАБРОНИРОВАТЬ";
+        }
+    };
+
+    document.querySelectorAll(".close-modal").forEach(el => el.onclick = () => document.getElementById("bookingModal").style.display = "none");
+    document.getElementById("backToMain").onclick = showMain;
+
+    showMain();
+</script>
+</body>
+</html>
